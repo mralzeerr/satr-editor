@@ -14,3 +14,11 @@ npm-debug.log*
 # مؤقتة
 *.tmp
 *.bak
+
+# ملفات داخلية — تبقى على الجهاز فقط ولا تُرفع
+STRATEGY.md
+PROGRESS.md
+future.md
+naming.md
+SESSION-*.md
+
