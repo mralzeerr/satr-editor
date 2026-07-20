@@ -1,0 +1,16 @@
+# التبعيات والبناء
+node_modules/
+dist/
+out/
+
+# ملفات النظام
+.DS_Store
+Thumbs.db
+
+# سجلات
+*.log
+npm-debug.log*
+
+# مؤقتة
+*.tmp
+*.bak

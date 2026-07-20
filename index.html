@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; worker-src 'self' blob: data:; connect-src https://api.anthropic.com https://api.groq.com https://api.moonshot.ai;" />
+  <title>سطر | Satr</title>
+  <link rel="stylesheet" href="node_modules/@fontsource/ibm-plex-sans-arabic/400.css" />
+  <link rel="stylesheet" href="node_modules/@fontsource/ibm-plex-sans-arabic/500.css" />
+  <link rel="stylesheet" href="node_modules/@fontsource/ibm-plex-sans-arabic/600.css" />
+  <link rel="stylesheet" href="node_modules/@fontsource/ibm-plex-sans-arabic/700.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css" />
+</head>
+<body>
+  <!-- شاشة إدخال مفتاح API -->
+  <div id="setup">
+    <div class="setup-card">
+      <div class="logo">سطر</div>
+      <p data-i18n="setupIntro">محرر أكواد ذكي يبني تطبيقاتك بالكامل بواسطة نموذج Claude Fable 5 — أقوى نماذج Anthropic. أدخل مفتاح API الخاص بك للبدء.</p>
+      <label for="api-key" data-i18n="apiKeyLabel">مفتاح Anthropic API</label>
+      <input id="api-key" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" />
+      <button id="save-key" class="btn-primary" data-i18n="saveStart">حفظ والبدء</button>
+      <div id="setup-status" class="setup-status"></div>
+      <div class="setup-hint">
+        <span data-i18n="noKey">ليس لديك مفتاح؟ أنشئ حسابك واحصل على المفتاح من</span>
+        <a href="https://platform.claude.com" target="_blank" rel="noreferrer">platform.claude.com</a>.
+        <span data-i18n="keyLocal">يُخزَّن المفتاح محليًا على جهازك فقط.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- التطبيق الرئيسي -->
+  <div id="app">
+    <div class="topbar">
+      <span class="brand">سطر</span>
+      <button class="icon-btn" id="btn-new-project" data-i18n="newProj">✨ مشروع جديد</button>
+      <button class="icon-btn" id="btn-open-folder" data-i18n="openFolder">📂 فتح مجلد</button>
+      <span class="ws-name" id="ws-name"></span>
+      <button class="icon-btn" id="btn-close-folder" style="display:none" data-i18n="closeFolder" title="Close Folder / إغلاق المجلد">✖ إغلاق المجلد</button>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="btn-lang" title="Language / اللغة">🌐 <span id="lang-label">EN</span></button>
+      <button class="icon-btn" id="btn-theme" title="Theme / المظهر"><span id="theme-icon">☀️</span></button>
+      <span class="git-branch" id="git-branch" style="display:none" title="Git branch">🌿 <span id="git-branch-name"></span></span>
+      <button class="icon-btn" id="btn-ghost" title="AI autocomplete / إكمال ذكي">👻</button>
+      <button class="icon-btn" id="btn-actions" title="Quick actions / أوامر سريعة">⚡ <span data-i18n="quickActions">أوامر</span></button>
+      <button class="icon-btn" id="btn-stats" title="Usage / الاستهلاك">📊 <span data-i18n="usage">الاستهلاك</span></button>
+      <button class="icon-btn" id="btn-preview" title="Preview / معاينة">👁 <span data-i18n="preview">معاينة</span></button>
+      <button class="icon-btn" id="btn-save" data-i18n="save">💾 حفظ</button>
+      <button class="icon-btn" id="btn-settings" data-i18n="settingsBtn">⚙️ الإعدادات</button>
+    </div>
+
+    <!-- لوحة معلومات الاستهلاك -->
+    <div id="stats-panel" class="stats-panel">
+      <div class="stats-title" data-i18n="statsTitle">معلومات الاستهلاك</div>
+      <div class="stats-row"><span data-i18n="totalTokens">إجمالي التوكنات (كل الجلسات)</span><span id="st-total">0</span></div>
+      <div class="stats-row"><span data-i18n="inputTokens">توكنات الإدخال</span><span id="st-input">0</span></div>
+      <div class="stats-row"><span data-i18n="outputTokens">توكنات الإخراج</span><span id="st-output">0</span></div>
+      <div class="stats-row"><span data-i18n="requests">عدد الطلبات</span><span id="st-requests">0</span></div>
+      <div class="stats-row stats-cost"><span data-i18n="estCost">التكلفة التقديرية</span><span id="st-cost">$0.00</span></div>
+      <div class="stats-note" data-i18n="balanceNote">💡 الرصيد المتبقي في حسابك يظهر في platform.claude.com — لا يوفّره الـ API مباشرةً.</div>
+      <button class="stats-reset" id="btn-reset-stats" data-i18n="resetStats">تصفير العدّاد</button>
+    </div>
+
+    <!-- قائمة الأوامر السريعة -->
+    <div id="actions-panel" class="drop-panel">
+      <div class="drop-title" data-i18n="quickActionsTitle">أوامر سريعة</div>
+      <div id="actions-list"></div>
+    </div>
+
+    <div class="main">
+      <!-- لوحة الدردشة -->
+      <div class="chat">
+        <div class="chat-head">
+          <span class="ai-dot"></span>
+          <span class="title" data-i18n="assistant">المساعد الذكي</span>
+          <span class="chat-head-btns">
+            <button class="icon-btn" id="btn-learn" title="Learning mode / وضع التعلّم">🎓</button>
+            <button class="icon-btn" id="btn-new-chat" title="New chat / محادثة جديدة">✚</button>
+            <button class="icon-btn" id="btn-sessions" title="Chat history / سجل المحادثات">🕘</button>
+            <button class="icon-btn undo-btn" id="btn-undo" style="display:none" title="Checkpoints / نقاط الاسترجاع">⎌ <span data-i18n="undo">تراجع</span></button>
+          </span>
+          <select class="model-select" id="model-select" title="Model / الموديل"></select>
+        </div>
+        <!-- سجل المحادثات -->
+        <div id="sessions-panel" class="drop-panel chat-drop">
+          <div class="drop-title" data-i18n="sessionsTitle">سجل المحادثات</div>
+          <div id="sessions-list"></div>
+        </div>
+        <!-- سجل نقاط الاسترجاع -->
+        <div id="ckpt-panel" class="drop-panel chat-drop">
+          <div class="drop-title" data-i18n="ckptTitle">نقاط الاسترجاع</div>
+          <div id="ckpt-list"></div>
+        </div>
+        <div class="chat-log" id="chat-log">
+          <div class="msg ai"><div class="content" data-i18n="greeting">مرحبًا! أنا مساعدك البرمجي. افتح مجلدًا ثم اطلب مني بناء ما تريد — مثلًا: «أنشئ لي تطبيق قائمة مهام بواجهة عربية أنيقة». سأبنيه، أشغّله، وأصلح أي أخطاء بنفسي.</div></div>
+        </div>
+        <div class="chat-input-wrap">
+          <div class="mention-pop" id="mention-pop" style="display:none"></div>
+          <div class="chat-input-box">
+            <div id="attach-strip" class="attach-strip"></div>
+            <textarea id="chat-input" rows="1" data-i18n-ph="chatPlaceholder" placeholder="اكتب طلبك هنا... (Enter للإرسال)"></textarea>
+            <div class="chat-input-row">
+              <span style="display:flex;gap:8px;align-items:center">
+                <span class="model-badge" id="model-badge"></span>
+                <span class="usage-badge" id="usage-badge"></span>
+              </span>
+              <span style="display:flex;gap:6px;align-items:center">
+                <button class="mic-btn" id="btn-mic" title="Voice input / إدخال صوتي">🎤</button>
+                <button class="send-btn" id="send-btn" title="إرسال">➤</button>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- منطقة المحرر -->
+      <div class="splitter v" id="split-chat"></div>
+      <div class="editor-area">
+        <div class="editor-split">
+          <div class="editor-col">
+            <div class="tabs" id="tabs"></div>
+            <div class="editor-wrap">
+              <div id="editor"></div>
+              <div class="editor-placeholder" id="editor-placeholder" data-i18n="editorPlaceholder">افتح ملفًا من الشجرة أو اطلب من المساعد إنشاء مشروع</div>
+              <!-- تحرير مباشر بالذكاء (Ctrl+K) -->
+              <div class="inline-edit" id="inline-edit" style="display:none">
+                <span class="inline-edit-icon">✨</span>
+                <input id="inline-edit-input" type="text" spellcheck="false" autocomplete="off"
+                       data-i18n-ph="inlineEditPh" placeholder="صف التعديل المطلوب على الكود المحدد... (Enter)" />
+                <span class="inline-edit-spin" id="inline-edit-spin" style="display:none"></span>
+              </div>
+              <!-- شاشة البداية: قوالب جاهزة عند فتح مجلد فارغ -->
+              <div class="welcome" id="welcome" style="display:none">
+                <div class="welcome-title" id="welcome-title">🚀 ابدأ مشروعك</div>
+                <div class="welcome-sub" id="welcome-sub">اختر قالبًا وسيبنيه المساعد كاملًا، أو اكتب طلبك الخاص في الدردشة</div>
+                <div class="welcome-recents" id="welcome-recents" style="display:none"></div>
+                <div class="welcome-grid" id="welcome-grid"></div>
+              </div>
+            </div>
+          </div>
+          <!-- لوحة المعاينة الحية -->
+          <div class="splitter v" id="split-preview" style="display:none"></div>
+          <div class="preview-panel" id="preview-panel" style="display:none">
+            <div class="preview-head">
+              <button class="icon-btn" id="preview-refresh" title="Refresh / تحديث">🔄</button>
+              <input id="preview-url" type="text" spellcheck="false" autocomplete="off" placeholder="http://localhost:3000" />
+              <button class="icon-btn" id="preview-external" title="Open in browser / فتح في المتصفح">🌐</button>
+              <button class="icon-btn" id="preview-close" title="Close / إغلاق">✕</button>
+            </div>
+            <webview id="preview-webview" src="about:blank"></webview>
+          </div>
+        </div>
+        <div class="splitter h" id="split-term"></div>
+        <div class="terminal-panel">
+          <div class="terminal-head">
+            <span class="dot"></span>
+            <span data-i18n="terminal">الطرفية</span>
+            <div class="term-tabs" id="term-tabs"></div>
+            <button class="icon-btn" id="btn-new-term" title="New terminal / طرفية جديدة">＋</button>
+            <button class="icon-btn" id="btn-clear-term" style="margin-inline-start:auto;" data-i18n="clear">مسح</button>
+          </div>
+          <div id="term-container"></div>
+          <div class="terminal-input-row">
+            <span class="term-prompt">›</span>
+            <input id="terminal-input" type="text" spellcheck="false" autocomplete="off"
+                   data-i18n-ph="termPlaceholder" placeholder="اكتب أمرًا ثم Enter..." />
+          </div>
+        </div>
+      </div>
+
+      <div class="splitter v" id="split-side"></div>
+      <!-- الشريط الجانبي: المستكشف + البحث -->
+      <div class="sidebar">
+        <div class="sidebar-head">
+          <div class="side-tabs">
+            <button class="side-tab active" id="side-tab-files" title="Explorer / المستكشف">📁</button>
+            <button class="side-tab" id="side-tab-search" title="Search / بحث">🔍</button>
+            <button class="side-tab" id="side-tab-git" title="Git">🌿</button>
+          </div>
+          <div class="side-actions" id="side-actions">
+            <button title="New file / ملف جديد" id="btn-new-file">📄+</button>
+            <button title="New folder / مجلد جديد" id="btn-new-folder">📁+</button>
+            <button title="Refresh / تحديث" id="btn-refresh-tree">🔄</button>
+          </div>
+        </div>
+        <div class="tree" id="tree">
+          <div class="tree-empty" data-i18n="noFolder">لم يُفتح أي مجلد بعد</div>
+        </div>
+        <div class="search-pane" id="search-pane" style="display:none">
+          <input id="search-input" type="text" spellcheck="false" autocomplete="off"
+                 data-i18n-ph="searchPlaceholder" placeholder="ابحث في الملفات... (Enter)" />
+          <div class="replace-row">
+            <input id="replace-input" type="text" spellcheck="false" autocomplete="off"
+                   data-i18n-ph="replacePlaceholder" placeholder="استبدال بـ..." />
+            <button class="icon-btn" id="btn-replace-all" data-i18n="replaceAll">استبدال الكل</button>
+          </div>
+          <div class="search-results" id="search-results"></div>
+        </div>
+        <!-- لوحة Git -->
+        <div class="git-pane" id="git-pane" style="display:none">
+          <div id="git-norepo" style="display:none">
+            <div class="drop-empty" data-i18n="notRepo">هذا المجلد ليس مستودع Git بعد</div>
+            <button class="btn-primary" id="btn-git-init" data-i18n="gitInit">تهيئة مستودع Git</button>
+          </div>
+          <div id="git-repo" style="display:none">
+            <div class="git-branch-row">
+              <select id="git-branch-select"></select>
+              <button class="icon-btn" id="btn-git-newbranch" title="New branch / فرع جديد">＋</button>
+              <button class="icon-btn" id="btn-git-pull" title="Pull">⬇</button>
+              <button class="icon-btn" id="btn-git-push" title="Push">⬆</button>
+              <button class="icon-btn" id="btn-git-refresh" title="Refresh / تحديث">🔄</button>
+            </div>
+            <textarea id="git-commit-msg" rows="2" data-i18n-ph="commitPlaceholder" placeholder="رسالة الحفظ (Commit)..."></textarea>
+            <button class="btn-primary git-commit-btn" id="btn-git-commit" data-i18n="commit">✓ Commit</button>
+            <div class="git-section" data-i18n="changes">التغييرات</div>
+            <div id="git-changes"></div>
+            <div class="git-section" data-i18n="gitLog">آخر الحفظات</div>
+            <div id="git-log"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- قائمة زر يمين لإدارة الملفات -->
+  <div class="ctx-menu" id="ctx-menu" style="display:none"></div>
+
+  <!-- عارض الفروقات (Diff) -->
+  <div class="diff-overlay" id="diff-overlay" style="display:none">
+    <div class="diff-box">
+      <div class="diff-head">
+        <span class="diff-title" id="diff-title"></span>
+        <button class="icon-btn" id="diff-close">✕</button>
+      </div>
+      <div id="diff-editor"></div>
+      <div class="diff-actions" id="diff-actions" style="display:none">
+        <button class="btn-primary" id="diff-accept" data-i18n="acceptEdit">✓ قبول التعديل</button>
+        <button class="modal-cancel" id="diff-reject" data-i18n="rejectEdit">رفض</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- لوحة الأوامر (Ctrl+Shift+P / Ctrl+P) -->
+  <div class="palette-overlay" id="palette-overlay" style="display:none">
+    <div class="palette-box">
+      <input id="palette-input" type="text" spellcheck="false" autocomplete="off" />
+      <div class="palette-list" id="palette-list"></div>
+    </div>
+  </div>
+
+  <!-- الجولة التعريفية -->
+  <div class="tour-overlay" id="tour-overlay" style="display:none">
+    <div class="tour-spot" id="tour-spot"></div>
+    <div class="tour-box" id="tour-box">
+      <div class="tour-title" id="tour-title"></div>
+      <div class="tour-text" id="tour-text"></div>
+      <div class="tour-nav">
+        <span class="tour-step" id="tour-step"></span>
+        <button class="modal-cancel" id="tour-skip" data-i18n="tourSkip">تخطي</button>
+        <button class="btn-primary" id="tour-next" data-i18n="tourNext">التالي</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- مودال مشروع جديد -->
+  <div class="modal-overlay" id="newproj-overlay" style="display:none">
+    <div class="modal-box">
+      <div class="modal-title" data-i18n="newProjTitle">✨ مشروع جديد</div>
+      <label class="newproj-label" data-i18n="newProjName">اسم المشروع</label>
+      <input id="newproj-name" type="text" spellcheck="false" autocomplete="off" />
+      <label class="newproj-label" data-i18n="newProjLoc">مكان الإنشاء</label>
+      <div class="newproj-loc-row">
+        <span id="newproj-loc" class="newproj-loc"></span>
+        <button class="set-btn" id="newproj-browse" data-i18n="browse">تغيير...</button>
+      </div>
+      <div class="newproj-status" id="newproj-status"></div>
+      <div class="modal-actions">
+        <button class="btn-primary" id="newproj-create" data-i18n="createProj">إنشاء وفتح</button>
+        <button class="modal-cancel" id="newproj-cancel" data-i18n="cancel">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- لوحة الإعدادات الموحدة -->
+  <div class="modal-overlay" id="settings-overlay" style="display:none">
+    <div class="modal-box settings-box">
+      <div class="modal-title" data-i18n="settingsTitle">⚙️ الإعدادات</div>
+      <div class="set-row">
+        <span data-i18n="setLang">اللغة</span>
+        <button class="set-btn" id="set-lang"></button>
+      </div>
+      <div class="set-row">
+        <span data-i18n="setTheme">المظهر</span>
+        <button class="set-btn" id="set-theme"></button>
+      </div>
+      <label class="set-row">
+        <span data-i18n="setFos">تنسيق تلقائي عند الحفظ (Prettier)</span>
+        <input type="checkbox" id="set-fos" />
+      </label>
+      <label class="set-row">
+        <span data-i18n="setGhost">إكمال ذكي أثناء الكتابة 👻</span>
+        <input type="checkbox" id="set-ghost" />
+      </label>
+      <label class="set-row">
+        <span data-i18n="setLearn">وضع التعلّم 🎓</span>
+        <input type="checkbox" id="set-learn" />
+      </label>
+      <div class="set-row">
+        <span data-i18n="apiKeyLabel">مفتاح Anthropic API</span>
+        <button class="set-btn" id="set-key" data-i18n="changeKey">تغيير المفتاح</button>
+      </div>
+      <div class="set-row">
+        <span data-i18n="setVoiceKey">مفتاح الإدخال الصوتي (Groq)</span>
+        <button class="set-btn" id="set-voice-key" data-i18n="changeKey">تغيير المفتاح</button>
+      </div>
+      <div class="set-row">
+        <span data-i18n="setMoonshotKey">مفتاح Moonshot (Kimi)</span>
+        <button class="set-btn" id="set-moonshot-key" data-i18n="changeKey">تغيير المفتاح</button>
+      </div>
+      <div class="set-about" id="set-about"></div>
+      <div class="modal-actions">
+        <button class="btn-primary" id="settings-close" data-i18n="ok">موافق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- مودال إدخال اسم (بديل prompt غير المدعوم في Electron) -->
+  <div class="modal-overlay" id="modal-overlay" style="display:none">
+    <div class="modal-box">
+      <div class="modal-title" id="modal-title"></div>
+      <input id="modal-input" type="text" spellcheck="false" autocomplete="off" />
+      <div class="modal-actions">
+        <button class="btn-primary" id="modal-ok" data-i18n="ok">موافق</button>
+        <button class="modal-cancel" id="modal-cancel" data-i18n="cancel">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- يجب تحميل xterm قبل loader.js وإلا التقطه نظام AMD ولم تظهر المتغيرات العامة -->
+  <script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
+  <script src="node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+  <script src="node_modules/monaco-editor/min/vs/loader.js"></script>
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>
