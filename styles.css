@@ -125,6 +125,8 @@ button {
   -webkit-app-region: drag;
 }
 .topbar button { -webkit-app-region: no-drag; }
+.brand-mark { width: 22px; height: 22px; border-radius: 6px; display: block; }
+.setup-card .logo-mark { width: 42px; height: 42px; border-radius: 10px; vertical-align: middle; margin-inline-end: 12px; }
 .topbar .brand {
   font-weight: 700;
   background: linear-gradient(120deg, #7c8cff, #c792ea);
