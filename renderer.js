@@ -265,6 +265,8 @@ const I18N = {
     recentFolders: 'المجلدات الحديثة',
     folderGone: 'المجلد لم يعد موجودًا وأُزيل من القائمة.',
     updateReady: '⬆️ تم تنزيل تحديث جديد — سيُثبَّت عند إغلاق التطبيق.',
+    setReport: 'واجهت مشكلة أو لديك اقتراح؟',
+    reportBtn: '🐞 أبلغ عن مشكلة',
   },
   en: {
     setupIntro: 'A smart code editor that builds your apps end-to-end with Claude Fable 5 — Anthropic’s most capable model. Enter your API key to begin.',
@@ -478,6 +480,8 @@ const I18N = {
     recentFolders: 'Recent folders',
     folderGone: 'That folder no longer exists and was removed from the list.',
     updateReady: '⬆️ An update was downloaded — it will install when you close the app.',
+    setReport: 'Found a bug or have a suggestion?',
+    reportBtn: '🐞 Report an issue',
   },
 };
 
@@ -1087,6 +1091,13 @@ document.getElementById('set-learn').addEventListener('change', async (e) => {
   state.learnMode = e.target.checked;
   updateLearnBtn();
   await window.api.setConfig({ learnMode: state.learnMode });
+});
+document.getElementById('set-report').addEventListener('click', async () => {
+  const info = await window.api.getInfo();
+  const body = encodeURIComponent(
+    `**وصف المشكلة / الاقتراح:**\n\n\n**خطوات إعادة الإنتاج (إن وجدت):**\n\n\n---\nSatr ${info.version} · Electron ${info.electron} · ${window.api.platform}`
+  );
+  window.api.openExternal(`https://github.com/mralzeerr/satr-editor/issues/new?body=${body}`);
 });
 document.getElementById('set-key').addEventListener('click', () => {
   closeSettings();
