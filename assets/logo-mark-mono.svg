@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="شعار سطر — Satr logo (monochrome)">
+  <!-- نسخة أحادية اللون بلا خلفية: للاستخدام فوق أي خلفية (currentColor) -->
+  <g stroke="currentColor" stroke-width="20" stroke-linecap="round" fill="none">
+    <path d="M196 114v36"/>
+    <path d="M168 114v36"/>
+    <path d="M140 114v36"/>
+    <path d="M196 150H88"/>
+  </g>
+  <rect x="42" y="118" width="28" height="42" rx="10" fill="currentColor"/>
+</svg>

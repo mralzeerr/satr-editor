@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سطر (Satr) — وكيل برمجي عربي يبني تطبيقاتك بالذكاء الاصطناعي</title>
+<meta name="description" content="سطر: أول وكيل برمجي عربي — تكتب أو تتكلم بالعربية، وهو يبني التطبيق كاملًا ويصلح أخطاءه بنفسه. مجاني ومفتوح المصدر.">
+<meta property="og:title" content="سطر (Satr) — ابنِ تطبيقك بالعربية">
+<meta property="og:description" content="أول وكيل برمجي عربي: تكتب أو تتكلم بالعربية، وهو يبني التطبيق كاملًا. مجاني ومفتوح المصدر.">
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117; --bg-2: #161b22; --bg-3: #21262d;
+    --text: #e6edf3; --muted: #8b949e;
+    --accent: #7c8cff; --accent-2: #c792ea;
+    --border: #30363d;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.7;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 20px; }
+
+  header { padding: 18px 0; border-bottom: 1px solid var(--border); }
+  header .wrap { display: flex; align-items: center; gap: 12px; }
+  header img { width: 36px; height: 36px; border-radius: 9px; }
+  header .name { font-size: 1.25rem; font-weight: 700; }
+  header nav { margin-inline-start: auto; display: flex; gap: 18px; align-items: center; }
+  header nav a { color: var(--muted); font-size: .95rem; }
+  header nav a:hover { color: var(--text); }
+
+  .hero { text-align: center; padding: 72px 0 40px; background: radial-gradient(circle at 50% 0%, #1a2233, var(--bg) 65%); }
+  .hero img { width: 88px; height: 88px; border-radius: 20px; margin-bottom: 24px; }
+  .hero h1 { font-size: clamp(1.8rem, 5vw, 3rem); font-weight: 700; margin-bottom: 14px; }
+  .hero h1 .grad { background: linear-gradient(120deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p.sub { color: var(--muted); font-size: clamp(1rem, 2.5vw, 1.2rem); max-width: 620px; margin: 0 auto 32px; }
+  .btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 13px 30px; border-radius: 10px; font-size: 1.05rem; font-weight: 600; transition: transform .15s, box-shadow .15s; }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-primary { background: linear-gradient(120deg, var(--accent), var(--accent-2)); color: #fff; box-shadow: 0 4px 24px rgba(124,140,255,.35); }
+  .btn-ghost { background: var(--bg-3); color: var(--text); border: 1px solid var(--border); }
+  .hero .note { color: var(--muted); font-size: .85rem; margin-top: 16px; }
+
+  .mock { max-width: 720px; margin: 48px auto 0; background: var(--bg-2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; text-align: right; box-shadow: 0 18px 60px rgba(0,0,0,.45); }
+  .mock-bar { display: flex; gap: 7px; padding: 11px 14px; background: var(--bg-3); border-bottom: 1px solid var(--border); }
+  .mock-bar i { width: 11px; height: 11px; border-radius: 50%; background: #444c56; }
+  .mock-body { padding: 20px; font-size: .95rem; }
+  .bubble { background: linear-gradient(120deg, rgba(124,140,255,.18), rgba(199,146,234,.18)); border: 1px solid rgba(124,140,255,.35); border-radius: 12px 12px 2px 12px; padding: 10px 16px; display: inline-block; margin-bottom: 16px; }
+  .agent-line { color: var(--muted); font-size: .9rem; margin: 7px 0; }
+  .agent-line b { color: var(--text); font-weight: 500; }
+  .ok { color: #56d364; }
+  .mock-note { text-align: center; color: var(--muted); font-size: .78rem; padding: 10px; border-top: 1px solid var(--border); }
+
+  section { padding: 64px 0; }
+  section h2 { text-align: center; font-size: clamp(1.4rem, 3.5vw, 2rem); margin-bottom: 40px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+  .card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
+  .card .emoji { font-size: 1.8rem; margin-bottom: 10px; }
+  .card h3 { font-size: 1.05rem; margin-bottom: 8px; }
+  .card p { color: var(--muted); font-size: .92rem; }
+
+  .steps { max-width: 640px; margin: 0 auto; counter-reset: step; }
+  .step { display: flex; gap: 18px; align-items: flex-start; margin-bottom: 26px; }
+  .step .n { flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(120deg, var(--accent), var(--accent-2)); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+  .step h3 { font-size: 1.05rem; margin-bottom: 4px; }
+  .step p { color: var(--muted); font-size: .92rem; }
+
+  .shield { background: var(--bg-2); border: 1px solid var(--border); border-inline-start: 4px solid var(--accent-2); border-radius: 12px; padding: 26px; max-width: 760px; margin: 0 auto; }
+  .shield h2 { text-align: right; font-size: 1.2rem; margin-bottom: 12px; }
+  .shield p, .shield li { color: var(--muted); font-size: .95rem; }
+  .shield ol { padding-inline-start: 22px; margin: 10px 0; }
+  .shield li b { color: var(--text); }
+
+  footer { border-top: 1px solid var(--border); padding: 32px 0; text-align: center; color: var(--muted); font-size: .9rem; }
+  footer .links { display: flex; gap: 22px; justify-content: center; margin-bottom: 12px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <img src="logo.svg" alt="شعار سطر">
+    <span class="name">سطر</span>
+    <nav>
+      <a href="#why">لماذا سطر؟</a>
+      <a href="#start">كيف أبدأ؟</a>
+      <a href="https://github.com/mralzeerr/satr-editor">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <img src="logo.svg" alt="شعار سطر">
+    <h1>ابنِ تطبيقك بالعربية…<br><span class="grad">يكفي سطر واحد</span></h1>
+    <p class="sub">سطر — أول وكيل برمجي عربي: تكتب أو تتكلم بلغتك (وحتى بلهجتك)، وهو يبني التطبيق كاملًا، يشغّله أمامك، ويصلح أخطاءه بنفسه.</p>
+    <div class="btns">
+      <a class="btn btn-primary" href="https://github.com/mralzeerr/satr-editor/releases/latest">⬇️ تحميل لويندوز</a>
+      <a class="btn btn-ghost" href="https://github.com/mralzeerr/satr-editor">⭐ الكود على GitHub</a>
+    </div>
+    <p class="note">مجاني ومفتوح المصدر (MIT) · يتطلب مفتاح Anthropic API خاصًا بك · تحديثات تلقائية</p>
+
+    <div class="mock" dir="rtl">
+      <div class="mock-bar"><i></i><i></i><i></i></div>
+      <div class="mock-body">
+        <div class="bubble">أبغى موقعًا لمطعمي، فيه قائمة الطعام وزر واتساب للطلب 🍽️</div>
+        <div class="agent-line">⚡ <b>إنشاء</b> index.html · menu.js · styles.css</div>
+        <div class="agent-line">🖥️ <b>تشغيل المعاينة الحية</b> على localhost:3000</div>
+        <div class="agent-line">🔧 اكتشف الوكيل خطأً في تحميل الصور… <b>وأصلحه بنفسه</b></div>
+        <div class="agent-line ok">✅ موقعك جاهز — افتح المعاينة أو انشره</div>
+      </div>
+      <div class="mock-note">توضيح لتجربة الاستخدام — جرّبها فعليًا بتحميل التطبيق</div>
+    </div>
+  </div>
+</div>
+
+<section id="why">
+  <div class="wrap">
+    <h2>لماذا سطر وليس الأدوات الأجنبية؟</h2>
+    <div class="grid">
+      <div class="card"><div class="emoji">🇸🇦</div><h3>عربي أولًا، لا ترجمة لاحقة</h3><p>واجهة RTL حقيقية، شرح للأخطاء بالعربية، ووكيل يفهم طلبك بلغتك — صُمم عربيًا من أول سطر.</p></div>
+      <div class="card"><div class="emoji">🤖</div><h3>وكيل يبني ويصلح ذاتيًا</h3><p>لا يقترح أكوادًا فقط — ينشئ الملفات، يشغّل الأوامر، يقرأ الأخطاء من الطرفية ويصلحها بنفسه حتى يعمل تطبيقك.</p></div>
+      <div class="card"><div class="emoji">🎙️</div><h3>تكلّم بلهجتك</h3><p>إدخال صوتي يفهم اللهجات الخليجية والعربية — قل ما تريد بناءه وشاهده يتشكّل أمامك.</p></div>
+      <div class="card"><div class="emoji">🎓</div><h3>وضع التعلّم</h3><p>الوكيل يشرح لك ماذا فعل ولماذا، خطوة بخطوة بالعربية — أداة تعلّم برمجة بلا حاجز اللغة.</p></div>
+      <div class="card"><div class="emoji">🧰</div><h3>قوالب عربية أصيلة</h3><p>ابدأ من قوالب RTL جاهزة مصممة بذوق عربي — لا قوالب أجنبية مترجمة.</p></div>
+      <div class="card"><div class="emoji">🔓</div><h3>مجاني ومفتوح المصدر</h3><p>الكود كله أمامك على GitHub برخصة MIT، مفتاح API خاص بك وبياناتك على جهازك، وتحديثات تلقائية مع كل إصدار.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="start" style="background: var(--bg-2);">
+  <div class="wrap">
+    <h2>ابدأ في ثلاث خطوات</h2>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><div><h3>حمّل وثبّت</h3><p>حمّل <a href="https://github.com/mralzeerr/satr-editor/releases/latest">أحدث إصدار لويندوز</a> — مثبّت عادي أو نسخة محمولة بلا تثبيت.</p></div></div>
+      <div class="step"><div class="n">2</div><div><h3>أدخل مفتاحك</h3><p>احصل على مفتاح Anthropic API من <a href="https://console.anthropic.com">console.anthropic.com</a> وأدخله عند أول تشغيل — يُحفظ مشفرًا على جهازك ولا يغادره.</p></div></div>
+      <div class="step"><div class="n">3</div><div><h3>اطلب بالعربية</h3><p>اكتب أو تكلّم: «أبغى متجرًا إلكترونيًا» — وشاهد الوكيل ينشئ الملفات ويشغّل المعاينة ويصلح الأخطاء بنفسه.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="shield">
+      <h2>⚠️ يظهر لك تحذير Windows SmartScreen؟ هذا طبيعي ومؤقت</h2>
+      <p>التحذير يظهر لأن الإصدارات الحالية غير موقّعة رقميًا بعد (شهادة التوقيع قيد الإجراء)، وليس لأن في التطبيق ضررًا — الكود كله مفتوح المصدر ويمكنك مراجعته بنفسك. للمتابعة:</p>
+      <ol>
+        <li>اضغط <b>More info — مزيد من المعلومات</b></li>
+        <li>ثم اضغط <b>Run anyway — التشغيل على أي حال</b></li>
+      </ol>
+      <p>فور اكتمال شهادة التوقيع الرقمي سيختفي هذا التحذير نهائيًا في الإصدارات القادمة — وستصلك تلقائيًا.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/mralzeerr/satr-editor">GitHub</a>
+      <a href="https://github.com/mralzeerr/satr-editor/releases">الإصدارات</a>
+      <a href="https://github.com/mralzeerr/satr-editor/issues/new">أبلغ عن مشكلة</a>
+      <a href="https://github.com/mralzeerr/satr-editor/blob/main/LICENSE">الرخصة MIT</a>
+    </div>
+    <p>سطر (Satr) — صُنع بحب في العالم العربي 🤍</p>
+  </div>
+</footer>
+
+</body>
+</html>
