@@ -177,15 +177,16 @@ button {
 }
 .stats-row span:last-child { font-family: var(--font-mono); color: var(--accent); font-weight: 600; }
 .stats-row.stats-cost span:last-child { color: var(--green); }
-.stats-note {
-  margin-top: 12px;
+.stats-sub {
+  margin-top: 14px;
+  margin-bottom: 4px;
   font-size: 11.5px;
-  line-height: 1.7;
+  font-weight: 600;
   color: var(--text-dim);
-  background: var(--bg);
-  padding: 10px;
-  border-radius: 8px;
 }
+#st-last { direction: ltr; }
+.stats-row.stats-model span:last-child { color: var(--text-dim); font-weight: 500; }
+.stats-row.stats-model.current span { color: var(--accent); font-weight: 600; }
 .stats-reset {
   margin-top: 12px;
   width: 100%;
@@ -198,17 +199,6 @@ button {
 }
 .stats-reset:hover { background: var(--red); color: #fff; }
 
-/* سطر توكنات الرد الواحد */
-.msg-usage {
-  align-self: stretch;
-  font-size: 11px;
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-  direction: ltr;
-  text-align: start;
-  padding: 2px 4px;
-  opacity: .85;
-}
 .usage-badge { cursor: pointer; }
 
 /* ==================== شجرة الملفات ==================== */

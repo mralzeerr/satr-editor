@@ -17,6 +17,7 @@ const state = {
   ghost: false,
   formatOnSave: true,
   usage: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, cost: 0, requests: 0 },
+  lastTurn: null,          // آخر رد: { model, input, output, cost }
 };
 
 // ============================================================
@@ -88,9 +89,9 @@ const I18N = {
     outputTokens: 'توكنات الإخراج',
     requests: 'عدد الطلبات',
     estCost: 'التكلفة التقديرية',
-    balanceNote: '💡 الرصيد المتبقي في حسابك يظهر في platform.claude.com — لا يوفّره الـ API مباشرةً.',
+    modelPrices: 'أسعار النماذج (دولار لكل مليون توكن — إدخال / إخراج)',
     resetStats: 'تصفير العدّاد',
-    thisResp: 'هذا الرد',
+    lastResp: 'آخر رد',
     resetConfirm: 'هل تريد تصفير عدّاد الاستهلاك التراكمي؟',
     preview: 'معاينة',
     search: 'بحث',
@@ -303,9 +304,9 @@ const I18N = {
     outputTokens: 'Output tokens',
     requests: 'Requests',
     estCost: 'Estimated cost',
-    balanceNote: '💡 Your remaining balance is shown on platform.claude.com — the API does not expose it directly.',
+    modelPrices: 'Model rates ($ per 1M tokens — in / out)',
     resetStats: 'Reset counter',
-    thisResp: 'This response',
+    lastResp: 'Last response',
     resetConfirm: 'Reset the cumulative usage counter?',
     preview: 'Preview',
     search: 'Search',
@@ -522,6 +523,32 @@ function updateUsageUI() {
   set('st-output', state.usage.output.toLocaleString());
   set('st-requests', state.usage.requests.toLocaleString());
   set('st-cost', '$' + state.usage.cost.toFixed(state.usage.cost < 1 ? 4 : 2));
+  const lt = state.lastTurn;
+  if (lt) {
+    const cost = lt.cost < 0.01 ? lt.cost.toFixed(4) : lt.cost.toFixed(3);
+    set('st-last-model', modelShort(lt.model));
+    set('st-last', `↑ ${lt.input.toLocaleString()} · ↓ ${lt.output.toLocaleString()} · ~$${cost}`);
+  }
+  renderModelRates();
+}
+
+// جدول أسعار النماذج داخل لوحة الاستهلاك (بدل عرضها بجانب كل موديل في القائمة)
+function renderModelRates() {
+  const box = document.getElementById('st-models');
+  if (!box) return;
+  box.innerHTML = '';
+  for (const m of MODELS) {
+    const row = document.createElement('div');
+    const current = state.model === m.id;
+    row.className = 'stats-row stats-model' + (current ? ' current' : '');
+    const name = document.createElement('span');
+    name.textContent = (current ? '● ' : '') + m.label;
+    if (current) name.title = t('modelBadgeTitle');
+    const rate = document.createElement('span');
+    rate.textContent = `$${m.in} / $${m.out}`;
+    row.append(name, rate);
+    box.appendChild(row);
+  }
 }
 
 async function persistUsage() {
@@ -639,7 +666,7 @@ function updateModelBadge(servedModel) {
   const differs = servedModel && !String(servedModel).startsWith(state.model);
   const shown = differs ? servedModel : state.model;
   const m = modelInfoOf(shown);
-  el.modelBadge.textContent = '🧠 ' + (m ? `${m.label} · $${m.in}/$${m.out}` : shown);
+  el.modelBadge.textContent = '🧠 ' + (m ? m.label : shown);
   el.modelBadge.classList.toggle('actual-differs', !!differs);
   el.modelBadge.title = differs ? t('modelActual') + servedModel : t('modelBadgeTitle');
 }
@@ -654,7 +681,7 @@ function initModelSelect() {
   for (const m of MODELS) {
     const opt = document.createElement('option');
     opt.value = m.id;
-    opt.textContent = `${m.label} · $${m.in}/$${m.out}`;
+    opt.textContent = m.label;
     el.modelSelect.appendChild(opt);
   }
   el.modelSelect.value = state.model;
@@ -683,6 +710,7 @@ el.modelSelect.addEventListener('change', async () => {
   state.model = el.modelSelect.value;
   await window.api.setConfig({ model: state.model });
   updateModelBadge();
+  renderModelRates();
   flashModelBadge();
   await ensureModelKey();
 });
@@ -1832,14 +1860,10 @@ document.getElementById('diff-reject').addEventListener('click', () => {
   hideDiff();
 });
 
+// تفاصيل آخر رد تُعرض في لوحة الاستهلاك بدل سطر أسفل كل رد في المحادثة
 function addUsageLine(turn) {
-  const div = document.createElement('div');
-  div.className = 'msg-usage';
-  const cost = turn.cost < 0.01 ? turn.cost.toFixed(4) : turn.cost.toFixed(3);
-  const label = modelShort(turn.model || state.model);
-  div.textContent = `${t('thisResp')} [${label}]: ↑ ${turn.input.toLocaleString()} · ↓ ${turn.output.toLocaleString()} ${t('tokens')} · ~$${cost}`;
-  el.chatLog.appendChild(div);
-  scrollChat();
+  state.lastTurn = { ...turn, model: turn.model || state.model };
+  updateUsageUI();
 }
 
 let thinkingEl = null;
