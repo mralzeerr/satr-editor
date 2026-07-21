@@ -1,7 +1,7 @@
 {
   "name": "satr",
   "productName": "Satr",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "description": "سطر (Satr) — وكيل برمجي عربي يبني تطبيقاتك بالكامل بالذكاء الاصطناعي",
   "main": "main.js",
   "scripts": {

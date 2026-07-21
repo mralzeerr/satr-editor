@@ -38,12 +38,13 @@
 | 🔀 **تكامل Git كامل** | حالة، فروقات، إيداعات — من داخل التطبيق |
 | ⏪ **نقاط استرجاع** | لقطة قبل كل مهمة، وتراجع بضغطة واحدة |
 | 🧠 **تعدد النماذج** | Claude (Anthropic) وKimi (Moonshot) — ومفاتيحك مشفرة على جهازك |
+| 🎁 **موديلات مجانية** | جرّب المحرر بلا بطاقة بنكية عبر مفتاح [OpenRouter](https://openrouter.ai/keys) مجاني |
 | ⬆️ **تحديث تلقائي** | كل إصدار جديد يصلك ويثبّت نفسه بلا تدخل |
 
 ### التحميل والبدء
 
 1. حمّل [أحدث إصدار](https://github.com/mralzeerr/satr-editor/releases/latest): `Satr-Setup-x.x.x.exe` (مثبّت) أو `Satr-x.x.x-portable.exe` (محمول).
-2. عند أول تشغيل أدخل مفتاح [Anthropic API](https://console.anthropic.com) — يُحفظ **مشفرًا على جهازك** ولا يغادره.
+2. عند أول تشغيل أدخل مفتاح [Anthropic API](https://console.anthropic.com) — أو ابدأ **مجانًا** بمفتاح [OpenRouter](https://openrouter.ai/keys) (تسجيل بلا بطاقة). المفاتيح تُحفظ **مشفرة على جهازك** ولا تغادره.
 3. افتح مجلدًا أو اختر قالبًا، واطلب بالعربية. انتهى.
 
 > **⚠️ تحذير SmartScreen؟** طبيعي ومؤقت — الإصدارات الحالية غير موقّعة رقميًا بعد (الشهادة قيد الإجراء). اضغط **More info** ثم **Run anyway**. الكود كله مفتوح أمامك في هذا المستودع.
@@ -81,12 +82,13 @@ npm run dist     # بناء المثبّت والنسخة المحمولة
 - 🧰 **Authentic Arabic RTL templates** — not translated foreign ones
 - 🔀 **Full Git integration**, ⏪ **checkpoints with one-click rollback**
 - 🧠 **Multi-model** — Claude (Anthropic) & Kimi (Moonshot); your API keys stay encrypted on your machine
+- 🎁 **Free models** — try the editor with no credit card via a free [OpenRouter](https://openrouter.ai/keys) key
 - ⬆️ **Auto-updates** on every release
 
 ### Getting started
 
 1. Download the [latest release](https://github.com/mralzeerr/satr-editor/releases/latest) — installer or portable.
-2. On first run, enter your [Anthropic API key](https://console.anthropic.com) (stored **encrypted, locally**).
+2. On first run, enter your [Anthropic API key](https://console.anthropic.com) — or start **free** with an [OpenRouter key](https://openrouter.ai/keys) (no credit card). Keys are stored **encrypted, locally**.
 3. Open a folder or pick a template, and ask — in Arabic or English.
 
 > **SmartScreen warning?** Expected and temporary — current builds aren't code-signed yet (certificate in progress). Click **More info → Run anyway**. The entire source is right here.

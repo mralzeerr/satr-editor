@@ -7,20 +7,30 @@
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 // نقطة Moonshot المتوافقة مع صيغة Anthropic — نفس شكل الطلبات والردود والأدوات
 const MOONSHOT_URL = 'https://api.moonshot.ai/anthropic/v1/messages';
+// OpenRouter يستخدم صيغة OpenAI (chat/completions) — نترجم إليها ومنها في المحوّل أدناه
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const FALLBACK_MODEL = 'claude-opus-4-8';
 
 // الموديلات المتاحة للاختيار — الأسعار بالدولار لكل مليون توكن (إدخال/إخراج)
+// الموديلات المجانية (free) عبر OpenRouter: تلزمها مفتاح OpenRouter مجاني، وقائمتها
+// تتغير باستمرار — عند تحديثها اختر فقط موديلات تدعم الأدوات (tools=true في /api/v1/models)
 export const MODELS = [
   { id: 'claude-fable-5',   label: 'Fable 5',   in: 10, out: 50 },
   { id: 'claude-opus-4-8',  label: 'Opus 4.8',  in: 5,  out: 25 },
   { id: 'claude-sonnet-5',  label: 'Sonnet 5',  in: 3,  out: 15 },
   { id: 'claude-haiku-4-5', label: 'Haiku 4.5', in: 1,  out: 5 },
   { id: 'kimi-k3',          label: 'Kimi K3',   in: 3,  out: 15, provider: 'moonshot' },
+  { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', label: 'Nemotron Ultra', in: 0, out: 0, provider: 'openrouter', free: true },
+  { id: 'poolside/laguna-m.1:free',               label: 'Laguna M.1',     in: 0, out: 0, provider: 'openrouter', free: true },
+  { id: 'openai/gpt-oss-20b:free',                label: 'GPT-OSS 20B',    in: 0, out: 0, provider: 'openrouter', free: true },
 ];
 export const DEFAULT_MODEL = 'claude-fable-5';
 
 export function providerOf(model) {
   return MODELS.find((m) => m.id === model)?.provider || 'anthropic';
+}
+export function isFreeModel(model) {
+  return !!MODELS.find((m) => m.id === model)?.free;
 }
 const apiUrlFor = (model) => (providerOf(model) === 'moonshot' ? MOONSHOT_URL : ANTHROPIC_URL);
 
@@ -235,6 +245,184 @@ async function throwApiError(res) {
   throw new Error(`HTTP ${res.status}: ${detail}`);
 }
 
+// ============================================================
+//  محوّل OpenRouter — ترجمة صيغة Anthropic ⇄ صيغة OpenAI
+//  بقية الشيفرة تتعامل مع شكل رسائل Anthropic فقط؛ الترجمة تحدث هنا حصرًا.
+// ============================================================
+const OPENROUTER_HEADERS = (apiKey) => ({
+  'content-type': 'application/json',
+  Authorization: 'Bearer ' + apiKey,
+  'HTTP-Referer': 'https://github.com/mralzeerr/satr-editor',
+  'X-Title': 'Satr Editor',
+});
+
+function anthropicBodyToOpenAI(body) {
+  const msgs = [];
+  const sys = Array.isArray(body.system)
+    ? body.system.map((b) => b.text || '').join('\n')
+    : body.system;
+  if (sys) msgs.push({ role: 'system', content: sys });
+
+  for (const m of body.messages) {
+    if (typeof m.content === 'string') {
+      msgs.push({ role: m.role, content: m.content });
+      continue;
+    }
+    if (m.role === 'assistant') {
+      let text = '';
+      const toolCalls = [];
+      for (const b of m.content) {
+        if (b.type === 'text') text += b.text;
+        else if (b.type === 'tool_use')
+          toolCalls.push({
+            id: b.id,
+            type: 'function',
+            function: { name: b.name, arguments: JSON.stringify(b.input || {}) },
+          });
+        // بلوكات التفكير تُسقَط — لا مقابل لها في صيغة OpenAI
+      }
+      const am = { role: 'assistant', content: text || null };
+      if (toolCalls.length) am.tool_calls = toolCalls;
+      msgs.push(am);
+    } else {
+      // رسالة مستخدم: نتائج أدوات أولًا (يجب أن تلي tool_calls مباشرة)، ثم النص/الصور
+      for (const b of m.content) {
+        if (b.type !== 'tool_result') continue;
+        const content = typeof b.content === 'string'
+          ? b.content
+          : (b.content || []).map((x) => x.text || '').join('\n');
+        msgs.push({ role: 'tool', tool_call_id: b.tool_use_id, content });
+      }
+      const text = m.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+      const images = m.content.filter((b) => b.type === 'image' && b.source?.type === 'base64');
+      if (images.length) {
+        const parts = [];
+        if (text) parts.push({ type: 'text', text });
+        for (const img of images)
+          parts.push({
+            type: 'image_url',
+            image_url: { url: `data:${img.source.media_type};base64,${img.source.data}` },
+          });
+        msgs.push({ role: 'user', content: parts });
+      } else if (text) {
+        msgs.push({ role: 'user', content: text });
+      }
+    }
+  }
+
+  const out = { model: body.model, max_tokens: body.max_tokens, messages: msgs };
+  if (body.tools?.length) {
+    out.tools = body.tools.map((t) => ({
+      type: 'function',
+      function: { name: t.name, description: t.description, parameters: t.input_schema },
+    }));
+  }
+  if (body.stop_sequences) out.stop = body.stop_sequences;
+  return out;
+}
+
+const OPENAI_STOP_MAP = { stop: 'end_turn', length: 'max_tokens', tool_calls: 'tool_use' };
+
+function openAIUsageToAnthropic(u) {
+  return { input_tokens: u?.prompt_tokens || 0, output_tokens: u?.completion_tokens || 0 };
+}
+
+// الموديلات المجانية مزدحمة كثيرًا — محاولة ثانية تلقائية بعد مهلة قصيرة عند 429
+async function fetchOpenRouter(apiKey, payload, signal) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: OPENROUTER_HEADERS(apiKey),
+      body: JSON.stringify(payload),
+      signal,
+    });
+    if (res.ok) return res;
+    if (res.status === 429 && attempt === 0 && !signal?.aborted) {
+      await new Promise((r) => setTimeout(r, 3000));
+      continue;
+    }
+    await throwApiError(res);
+  }
+}
+
+// استدعاء OpenRouter متدفق — يعيد رسالة بشكل Anthropic تمامًا كما تتوقعها حلقة الوكيل
+async function callOpenRouterStream(apiKey, body, { signal, onTextDelta } = {}) {
+  const payload = { ...anthropicBodyToOpenAI(body), stream: true, usage: { include: true } };
+  const res = await fetchOpenRouter(apiKey, payload, signal);
+
+  const message = { content: [], stop_reason: 'end_turn', usage: {}, model: body.model };
+  let textBlock = null;
+  const toolAcc = new Map(); // index -> { id, name, args }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === '[DONE]') continue;
+      let ev;
+      try { ev = JSON.parse(data); } catch { continue; }
+      if (ev.error) throw new Error(ev.error.message || 'stream error');
+      if (ev.usage) message.usage = openAIUsageToAnthropic(ev.usage);
+      const choice = ev.choices?.[0];
+      if (!choice) continue;
+      const delta = choice.delta || {};
+      if (delta.content) {
+        if (!textBlock) {
+          textBlock = { type: 'text', text: '' };
+          message.content.push(textBlock);
+        }
+        textBlock.text += delta.content;
+        onTextDelta?.(delta.content, textBlock.text);
+      }
+      for (const tc of delta.tool_calls || []) {
+        const idx = tc.index ?? 0;
+        if (!toolAcc.has(idx)) toolAcc.set(idx, { id: tc.id || '', name: '', args: '' });
+        const acc = toolAcc.get(idx);
+        if (tc.id) acc.id = tc.id;
+        if (tc.function?.name) acc.name += tc.function.name;
+        if (tc.function?.arguments) acc.args += tc.function.arguments;
+      }
+      if (choice.finish_reason) {
+        message.stop_reason = OPENAI_STOP_MAP[choice.finish_reason] || 'end_turn';
+      }
+    }
+  }
+
+  for (const [, acc] of [...toolAcc.entries()].sort((a, b) => a[0] - b[0])) {
+    let input = {};
+    try { input = acc.args ? JSON.parse(acc.args) : {}; } catch {}
+    message.content.push({
+      type: 'tool_use',
+      id: acc.id || 'call_' + Math.random().toString(36).slice(2),
+      name: acc.name,
+      input,
+    });
+  }
+  if (toolAcc.size && message.stop_reason !== 'tool_use') message.stop_reason = 'tool_use';
+  return message;
+}
+
+// استدعاء OpenRouter غير متدفق — للميزات الخفيفة (Ctrl+K وأشباهها)
+async function callOpenRouterOnce(apiKey, body, signal) {
+  const res = await fetchOpenRouter(apiKey, anthropicBodyToOpenAI(body), signal);
+  const data = await res.json();
+  const choice = data.choices?.[0];
+  return {
+    text: choice?.message?.content || '',
+    usage: openAIUsageToAnthropic(data.usage),
+    model: body.model,
+    stop_reason: OPENAI_STOP_MAP[choice?.finish_reason] || 'end_turn',
+  };
+}
+
 async function callAnthropic(apiKey, body, signal) {
   const res = await fetch(apiUrlFor(body.model), {
     method: 'POST',
@@ -251,6 +439,7 @@ export async function callOnce({ apiKey, model, system, messages, maxTokens = 20
   const body = { model, max_tokens: maxTokens, messages };
   if (system) body.system = system;
   if (stopSequences) body.stop_sequences = stopSequences;
+  if (providerOf(model) === 'openrouter') return callOpenRouterOnce(apiKey, body, signal);
   const data = await callAnthropic(apiKey, body, signal);
   const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
   return { text, usage: data.usage, model: data.model, stop_reason: data.stop_reason };
@@ -394,7 +583,8 @@ export async function runAgent({ apiKey, model, workspace, history, callbacks, s
 
     let data;
     try {
-      data = await callAnthropicStream(apiKey, body, {
+      const streamFn = providerOf(selectedModel) === 'openrouter' ? callOpenRouterStream : callAnthropicStream;
+      data = await streamFn(apiKey, body, {
         signal,
         onTextDelta: (delta, fullText) => callbacks.onTextDelta?.(delta, fullText),
       });

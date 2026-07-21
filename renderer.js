@@ -1,4 +1,4 @@
-import { runAgent, testApiKey, callOnce, MODELS, DEFAULT_MODEL, providerOf } from './agent.js';
+import { runAgent, testApiKey, callOnce, MODELS, DEFAULT_MODEL, providerOf, isFreeModel } from './agent.js';
 
 // ============================================================
 //  حالة التطبيق
@@ -35,6 +35,9 @@ const PRICING = {
   'kimi': { in: 3, out: 15 },
 };
 function priceFor(model) {
+  // المطابقة الدقيقة أولًا — الموديلات المجانية سعرها صفر ويجب ألا تقع في افتراض أعلى سعر
+  const exact = MODELS.find((x) => x.id === model);
+  if (exact) return { in: exact.in, out: exact.out };
   const m = (model || '').toLowerCase();
   for (const key of Object.keys(PRICING)) {
     if (m.includes(key)) return PRICING[key];
@@ -200,6 +203,16 @@ const I18N = {
     modelActual: 'انتبه: تم الرد بنموذج بديل — الحساب حسبه: ',
     setMoonshotKey: 'مفتاح Moonshot (Kimi)',
     moonshotKeyPrompt: 'أدخل مفتاح Moonshot API — أنشئه من platform.moonshot.ai',
+    setOpenrouterKey: 'مفتاح OpenRouter (الموديلات المجانية)',
+    openrouterKeyPrompt: 'أدخل مفتاح OpenRouter — أنشئه مجانًا من openrouter.ai/keys (تسجيل بحساب Google/GitHub، بدون بطاقة بنكية)',
+    freeBadge: 'مجاني',
+    groupPaid: 'الموديلات الأساسية',
+    groupFree: '🎁 موديلات مجانية',
+    freeNotice: 'الموديلات المجانية (عبر OpenRouter):\n\n• مناسبة للتجربة والمهام البسيطة — جودتها وسرعتها أقل من الموديلات الأساسية.\n• الطلبات محدودة؛ قد تظهر رسالة ازدحام وقت الضغط.\n• تنبيه خصوصية: قد تُستخدم بياناتك للتدريب لدى بعض المزوّدين المجانيين — لا تستخدمها مع كود حساس أو أسرار.\n\nيلزمك مفتاح OpenRouter مجاني (openrouter.ai/keys).',
+    freeRateLimit: '🎁 الموديل المجاني مزدحم حاليًا (تجاوز الحد المجاني المؤقت). انتظر دقيقة ثم أعد المحاولة، أو بدّل مؤقتًا إلى موديل آخر من القائمة.',
+    freeModelGone: '🎁 يبدو أن هذا الموديل المجاني لم يعد متاحًا لدى OpenRouter — قائمة الموديلات المجانية تتغير باستمرار. اختر موديلًا آخر من القائمة.',
+    setupOr: 'أو',
+    setupFreeBtn: '🎁 جرّب مجانًا بمفتاح OpenRouter',
     qaDocs: '📚 وثّق المشروع بالعربية',
     qaDocsP: 'أنشئ توثيقًا عربيًا كاملًا لهذا المشروع: ملف README.md بالعربية يشرح الفكرة والتشغيل والبنية، مع تعليقات عربية موجزة للأجزاء المهمة من الكود.',
     paletteFilesPh: 'اكتب اسم ملف للفتح، أو > للأوامر...',
@@ -415,6 +428,16 @@ const I18N = {
     modelActual: 'Note: a fallback model answered — billed as: ',
     setMoonshotKey: 'Moonshot key (Kimi)',
     moonshotKeyPrompt: 'Enter your Moonshot API key — create it at platform.moonshot.ai',
+    setOpenrouterKey: 'OpenRouter key (free models)',
+    openrouterKeyPrompt: 'Enter your OpenRouter key — create it free at openrouter.ai/keys (Google/GitHub sign-in, no credit card)',
+    freeBadge: 'Free',
+    groupPaid: 'Main models',
+    groupFree: '🎁 Free models',
+    freeNotice: 'Free models (via OpenRouter):\n\n• Great for trying things out and simple tasks — quality and speed are below the main models.\n• Requests are rate-limited; you may see a busy message at peak times.\n• Privacy note: some free providers may use your data for training — avoid sensitive code or secrets.\n\nYou need a free OpenRouter key (openrouter.ai/keys).',
+    freeRateLimit: '🎁 The free model is busy right now (temporary free-tier limit). Wait a minute and try again, or switch to another model from the list.',
+    freeModelGone: '🎁 This free model seems to be no longer available on OpenRouter — the free list changes often. Pick another model from the list.',
+    setupOr: 'or',
+    setupFreeBtn: '🎁 Try free with an OpenRouter key',
     qaDocs: '📚 Generate Arabic docs',
     qaDocsP: 'Create full Arabic documentation for this project: an Arabic README.md explaining the idea, setup, and structure, plus concise Arabic comments for the important parts of the code.',
     paletteFilesPh: 'Type a file name to open, or > for commands...',
@@ -505,6 +528,7 @@ function applyLang(lang) {
   });
   const langLabel = document.getElementById('lang-label');
   if (langLabel) langLabel.textContent = lang === 'ar' ? 'EN' : 'ع';
+  initModelSelect(); // إعادة بناء القائمة لترجمة عناوين المجموعات (أساسية/مجانية)
   updateUsageUI();
 }
 
@@ -545,7 +569,12 @@ function renderModelRates() {
     name.textContent = (current ? '● ' : '') + m.label;
     if (current) name.title = t('modelBadgeTitle');
     const rate = document.createElement('span');
-    rate.textContent = `$${m.in} / $${m.out}`;
+    if (m.free) {
+      rate.textContent = '🎁 ' + t('freeBadge');
+      rate.className = 'rate-free';
+    } else {
+      rate.textContent = `$${m.in} / $${m.out}`;
+    }
     row.append(name, rate);
     box.appendChild(row);
   }
@@ -666,7 +695,7 @@ function updateModelBadge(servedModel) {
   const differs = servedModel && !String(servedModel).startsWith(state.model);
   const shown = differs ? servedModel : state.model;
   const m = modelInfoOf(shown);
-  el.modelBadge.textContent = '🧠 ' + (m ? m.label : shown);
+  el.modelBadge.textContent = (m?.free ? '🎁 ' : '🧠 ') + (m ? m.label : shown);
   el.modelBadge.classList.toggle('actual-differs', !!differs);
   el.modelBadge.title = differs ? t('modelActual') + servedModel : t('modelBadgeTitle');
 }
@@ -678,19 +707,31 @@ function flashModelBadge() {
 
 function initModelSelect() {
   el.modelSelect.innerHTML = '';
-  for (const m of MODELS) {
-    const opt = document.createElement('option');
-    opt.value = m.id;
-    opt.textContent = m.label;
-    el.modelSelect.appendChild(opt);
-  }
+  const paid = MODELS.filter((m) => !m.free);
+  const free = MODELS.filter((m) => m.free);
+  const addGroup = (label, models) => {
+    const group = document.createElement('optgroup');
+    group.label = label;
+    for (const m of models) {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.label;
+      group.appendChild(opt);
+    }
+    el.modelSelect.appendChild(group);
+  };
+  addGroup(t('groupPaid'), paid);
+  addGroup(t('groupFree'), free);
   el.modelSelect.value = state.model;
   updateModelBadge();
 }
 
-// اختيار المفتاح المناسب حسب مزوّد النموذج (Anthropic أو Moonshot)
+// اختيار المفتاح المناسب حسب مزوّد النموذج (Anthropic أو Moonshot أو OpenRouter)
 function keyForModel(id) {
-  return providerOf(id) === 'moonshot' ? state.moonshotKey : state.apiKey;
+  const provider = providerOf(id);
+  if (provider === 'moonshot') return state.moonshotKey;
+  if (provider === 'openrouter') return state.openrouterKey;
+  return state.apiKey;
 }
 async function promptMoonshotKey() {
   const key = await askString(t('moonshotKeyPrompt'), state.moonshotKey || '');
@@ -699,9 +740,32 @@ async function promptMoonshotKey() {
   await window.api.setConfig({ moonshotKey: key });
   return true;
 }
+async function promptOpenrouterKey() {
+  const key = await askString(t('openrouterKeyPrompt'), state.openrouterKey || '');
+  if (!key) return false;
+  state.openrouterKey = key;
+  await window.api.setConfig({ openrouterKey: key });
+  return true;
+}
 async function ensureModelKey() {
-  if (providerOf(state.model) === 'moonshot' && !state.moonshotKey) {
-    return promptMoonshotKey();
+  const provider = providerOf(state.model);
+  // من دخل بالمسار المجاني ثم اختار موديل Claude: نعرض شاشة إدخال مفتاح Anthropic
+  if (provider === 'anthropic' && !state.apiKey) {
+    el.setup.style.display = 'flex';
+    el.apiKey.value = '';
+    el.saveKey.disabled = false;
+    el.setupStatus.textContent = '';
+    return false;
+  }
+  if (provider === 'moonshot' && !state.moonshotKey) return promptMoonshotKey();
+  if (provider === 'openrouter') {
+    // تنبيه لمرة واحدة عند أول اختيار لموديل مجاني: الجودة، الازدحام، والخصوصية
+    if (!state.freeNoticeSeen) {
+      alert(t('freeNotice'));
+      state.freeNoticeSeen = true;
+      await window.api.setConfig({ freeNoticeSeen: true });
+    }
+    if (!state.openrouterKey) return promptOpenrouterKey();
   }
   return true;
 }
@@ -727,6 +791,8 @@ async function boot() {
   state.ghost = !!cfg.ghost;
   state.groqKey = cfg.groqKey || '';
   state.moonshotKey = cfg.moonshotKey || '';
+  state.openrouterKey = cfg.openrouterKey || '';
+  state.freeNoticeSeen = !!cfg.freeNoticeSeen;
   state.formatOnSave = cfg.formatOnSave !== false;
   state.seenTour = !!cfg.seenTour;
   state.recents = cfg.recentFolders || [];
@@ -735,8 +801,9 @@ async function boot() {
   applyLang(cfg.lang || 'ar');
   applyTheme(cfg.theme || 'dark');
   initSplitters(cfg.layout);
-  if (cfg.apiKey) {
-    state.apiKey = cfg.apiKey;
+  // الدخول بمفتاح Anthropic، أو بمفتاح OpenRouter وحده (مسار البدء المجاني)
+  if (cfg.apiKey || cfg.openrouterKey) {
+    state.apiKey = cfg.apiKey || null;
     if (cfg.workspace) state.workspace = cfg.workspace;
     await enterApp();
   }
@@ -768,6 +835,22 @@ el.saveKey.addEventListener('click', async () => {
 
 el.apiKey.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') el.saveKey.click();
+});
+
+// البدء المجاني: مفتاح OpenRouter بدل مفتاح Anthropic — يدخل التطبيق على أول موديل مجاني
+document.getElementById('start-free').addEventListener('click', async () => {
+  if (!state.freeNoticeSeen) {
+    alert(t('freeNotice'));
+    state.freeNoticeSeen = true;
+    await window.api.setConfig({ freeNoticeSeen: true });
+  }
+  if (!(await promptOpenrouterKey())) return;
+  if (providerOf(state.model) !== 'openrouter') {
+    state.model = MODELS.find((m) => m.free).id;
+    await window.api.setConfig({ model: state.model });
+  }
+  initModelSelect();
+  await enterApp();
 });
 
 async function enterApp() {
@@ -1141,6 +1224,10 @@ document.getElementById('set-voice-key').addEventListener('click', async () => {
 document.getElementById('set-moonshot-key').addEventListener('click', async () => {
   closeSettings();
   await promptMoonshotKey();
+});
+document.getElementById('set-openrouter-key').addEventListener('click', async () => {
+  closeSettings();
+  await promptOpenrouterKey();
 });
 
 // تبديل اللغة
@@ -2022,7 +2109,13 @@ async function sendMessage() {
           updateModelBadge(model);
         }
       },
-      onError: (err) => { showThinking(false); addAiText(t('errorPrefix') + err); },
+      onError: (err) => {
+        showThinking(false);
+        // الموديلات المجانية: رسائل ودّية لأخطائها الشائعة (ازدحام الحد المجاني، اختفاء الموديل)
+        if (isFreeModel(state.model) && /HTTP 429/.test(err)) return addAiText(t('freeRateLimit'));
+        if (isFreeModel(state.model) && /HTTP 404/.test(err)) return addAiText(t('freeModelGone'));
+        addAiText(t('errorPrefix') + err);
+      },
     },
   });
 

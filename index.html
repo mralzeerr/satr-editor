@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; worker-src 'self' blob: data:; connect-src https://api.anthropic.com https://api.groq.com https://api.moonshot.ai;" />
+        content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; worker-src 'self' blob: data:; connect-src https://api.anthropic.com https://api.groq.com https://api.moonshot.ai https://openrouter.ai;" />
   <title>سطر | Satr</title>
   <link rel="stylesheet" href="node_modules/@fontsource/ibm-plex-sans-arabic/400.css" />
   <link rel="stylesheet" href="node_modules/@fontsource/ibm-plex-sans-arabic/500.css" />
@@ -21,6 +21,8 @@
       <label for="api-key" data-i18n="apiKeyLabel">مفتاح Anthropic API</label>
       <input id="api-key" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" />
       <button id="save-key" class="btn-primary" data-i18n="saveStart">حفظ والبدء</button>
+      <div class="setup-or"><span data-i18n="setupOr">أو</span></div>
+      <button id="start-free" class="btn-free" data-i18n="setupFreeBtn">🎁 جرّب مجانًا بمفتاح OpenRouter</button>
       <div id="setup-status" class="setup-status"></div>
       <div class="setup-hint">
         <span data-i18n="noKey">ليس لديك مفتاح؟ أنشئ حسابك واحصل على المفتاح من</span>
@@ -320,6 +322,10 @@
       <div class="set-row">
         <span data-i18n="setMoonshotKey">مفتاح Moonshot (Kimi)</span>
         <button class="set-btn" id="set-moonshot-key" data-i18n="changeKey">تغيير المفتاح</button>
+      </div>
+      <div class="set-row">
+        <span data-i18n="setOpenrouterKey">مفتاح OpenRouter (الموديلات المجانية)</span>
+        <button class="set-btn" id="set-openrouter-key" data-i18n="changeKey">تغيير المفتاح</button>
       </div>
       <div class="set-row">
         <span data-i18n="setReport">واجهت مشكلة أو لديك اقتراح؟</span>
