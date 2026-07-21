@@ -62,6 +62,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "latest",
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
+    "@sentry/electron": "^7.15.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "electron-updater": "^6.8.9",

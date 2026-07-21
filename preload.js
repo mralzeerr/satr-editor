@@ -61,6 +61,9 @@ contextBridge.exposeInMainWorld('api', {
   // الاستبدال الشامل
   replaceInFiles: (payload) => ipcRenderer.invoke('search:replace', payload),
 
+  // تقارير الأعطال (اختيارية)
+  reportError: (payload) => ipcRenderer.invoke('error:report', payload),
+
   // متفرقات
   openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
   onUpdateReady: (cb) => ipcRenderer.on('app:updateReady', () => cb()),

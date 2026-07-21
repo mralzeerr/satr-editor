@@ -18,7 +18,28 @@ const state = {
   formatOnSave: true,
   usage: { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, cost: 0, requests: 0 },
   lastTurn: null,          // آخر رد: { model, input, output, cost }
+  crashReports: false,     // تقارير الأعطال — لا تُرسل إلا بموافقة صريحة
 };
+
+// التقاط أخطاء الواجهة غير المعالجة → تقرير عطل مجهول عبر جسر IPC (إن وافق المستخدم)
+window.addEventListener('error', (e) => {
+  if (!state.crashReports) return;
+  window.api.reportError({
+    message: e.message || String(e.error || ''),
+    stack: e.error?.stack || `${e.filename || ''}:${e.lineno || ''}`,
+    source: 'window.onerror',
+  });
+});
+window.addEventListener('unhandledrejection', (e) => {
+  if (!state.crashReports) return;
+  const r = e.reason;
+  window.api.reportError({
+    message: r?.message || String(r ?? 'unhandled rejection'),
+    stack: r?.stack || '',
+    name: r?.name,
+    source: 'unhandledrejection',
+  });
+});
 
 // ============================================================
 //  التسعير التقديري (دولار لكل مليون توكن)
@@ -213,6 +234,8 @@ const I18N = {
     freeModelGone: '🎁 يبدو أن هذا الموديل المجاني لم يعد متاحًا لدى OpenRouter — قائمة الموديلات المجانية تتغير باستمرار. اختر موديلًا آخر من القائمة.',
     setupOr: 'أو',
     setupFreeBtn: '🎁 جرّب مجانًا بمفتاح OpenRouter',
+    setCrash: 'تقارير الأعطال المجهولة 🛡️',
+    crashConsent: 'هل تسمح بإرسال تقارير أعطال مجهولة عند حدوث خطأ في التطبيق؟\n\n• تساعدنا على اكتشاف المشاكل وإصلاحها بسرعة.\n• لا تتضمن كودك ولا مفاتيحك ولا محتوى ملفاتك — فقط تفاصيل الخطأ التقنية وإصدار التطبيق والنظام، مع إخفاء اسم المستخدم من المسارات.\n• يمكنك تغيير الخيار في أي وقت من الإعدادات.',
     qaDocs: '📚 وثّق المشروع بالعربية',
     qaDocsP: 'أنشئ توثيقًا عربيًا كاملًا لهذا المشروع: ملف README.md بالعربية يشرح الفكرة والتشغيل والبنية، مع تعليقات عربية موجزة للأجزاء المهمة من الكود.',
     paletteFilesPh: 'اكتب اسم ملف للفتح، أو > للأوامر...',
@@ -438,6 +461,8 @@ const I18N = {
     freeModelGone: '🎁 This free model seems to be no longer available on OpenRouter — the free list changes often. Pick another model from the list.',
     setupOr: 'or',
     setupFreeBtn: '🎁 Try free with an OpenRouter key',
+    setCrash: 'Anonymous crash reports 🛡️',
+    crashConsent: 'Allow sending anonymous crash reports when an error occurs?\n\n• Helps us find and fix problems quickly.\n• Never includes your code, keys, or file contents — only technical error details, app version and OS, with your username removed from paths.\n• You can change this anytime in Settings.',
     qaDocs: '📚 Generate Arabic docs',
     qaDocsP: 'Create full Arabic documentation for this project: an Arabic README.md explaining the idea, setup, and structure, plus concise Arabic comments for the important parts of the code.',
     paletteFilesPh: 'Type a file name to open, or > for commands...',
@@ -793,6 +818,8 @@ async function boot() {
   state.moonshotKey = cfg.moonshotKey || '';
   state.openrouterKey = cfg.openrouterKey || '';
   state.freeNoticeSeen = !!cfg.freeNoticeSeen;
+  state.crashReports = cfg.crashReports === true;
+  state.crashAsked = !!cfg.crashAsked;
   state.formatOnSave = cfg.formatOnSave !== false;
   state.seenTour = !!cfg.seenTour;
   state.recents = cfg.recentFolders || [];
@@ -870,6 +897,14 @@ async function enterApp() {
   if (!state.seenTour) {
     state.seenTour = true;
     setTimeout(startTour, 800);
+  } else if (!state.crashAsked) {
+    // موافقة تقارير الأعطال — سؤال لمرة واحدة، وليس في أول تشغيل (كي لا يزاحم الجولة)
+    const info = await window.api.getInfo();
+    if (info.crashReportsAvailable) {
+      state.crashAsked = true;
+      state.crashReports = await askConfirm(t('crashConsent'));
+      await window.api.setConfig({ crashReports: state.crashReports, crashAsked: true });
+    }
   }
 }
 
@@ -1165,6 +1200,7 @@ async function openSettings() {
   document.getElementById('set-fos').checked = state.formatOnSave;
   document.getElementById('set-ghost').checked = state.ghost;
   document.getElementById('set-learn').checked = state.learnMode;
+  document.getElementById('set-crash').checked = state.crashReports;
   const info = await window.api.getInfo();
   document.getElementById('set-about').textContent =
     `سطر (Satr) — ${t('versionLbl')} ${info.version} · Electron ${info.electron}`;
@@ -1202,6 +1238,10 @@ document.getElementById('set-learn').addEventListener('change', async (e) => {
   state.learnMode = e.target.checked;
   updateLearnBtn();
   await window.api.setConfig({ learnMode: state.learnMode });
+});
+document.getElementById('set-crash').addEventListener('change', async (e) => {
+  state.crashReports = e.target.checked;
+  await window.api.setConfig({ crashReports: state.crashReports, crashAsked: true });
 });
 document.getElementById('set-report').addEventListener('click', async () => {
   const info = await window.api.getInfo();

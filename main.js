@@ -9,6 +9,53 @@ let mainWindow;
 // ملف تخزين الإعدادات (مفتاح API) محليًا على جهاز المستخدم
 const CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
 
+// ==================== تقارير الأعطال (Sentry) — اختيارية بموافقة صريحة ====================
+// DSN فارغ = الميزة معطلة بالكامل (يُملأ عند تجهيز حساب sentry.io)
+const SENTRY_DSN = '';
+let sentry = null;              // مرجع SDK بعد التهيئة
+let crashReportsEnabled = false; // موافقة المستخدم — تُقرأ من الإعدادات وتتحدث فورًا عند التبديل
+
+// تنظيف أي مسارات تحمل اسم مستخدم الجهاز قبل الإرسال — لا معلومات شخصية في التقارير
+function scrubEvent(event) {
+  try {
+    const user = os.userInfo().username;
+    const re = new RegExp(user.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    return JSON.parse(JSON.stringify(event).replace(re, '<user>'));
+  } catch {
+    return event;
+  }
+}
+
+function initSentry() {
+  if (!SENTRY_DSN || sentry) return;
+  try {
+    sentry = require('@sentry/electron/main');
+    sentry.init({
+      dsn: SENTRY_DSN,
+      release: 'satr@' + app.getVersion(),
+      autoSessionTracking: false,
+      sendDefaultPii: false,
+      beforeSend: (event) => (crashReportsEnabled ? scrubEvent(event) : null),
+    });
+  } catch {
+    sentry = null;
+  }
+}
+
+// أخطاء الواجهة تصل عبر جسر IPC (الواجهة بلا حزم بناء فلا يمكنها تحميل SDK مباشرة)
+ipcMain.handle('error:report', (_e, payload) => {
+  if (!sentry || !crashReportsEnabled || !payload?.message) return false;
+  try {
+    const err = new Error(String(payload.message).slice(0, 500));
+    err.name = payload.name || 'RendererError';
+    if (payload.stack) err.stack = String(payload.stack).slice(0, 4000);
+    sentry.captureException(err, { tags: { process: 'renderer', source: payload.source || '' } });
+    return true;
+  } catch {
+    return false;
+  }
+});
+
 function loadConfig() {
   try {
     return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
@@ -81,6 +128,8 @@ function createWindow() {
 
 app.whenReady().then(() => {
   if (process.platform === 'win32') app.setAppUserModelId('com.aetiger.satr');
+  crashReportsEnabled = loadConfig().crashReports === true;
+  if (crashReportsEnabled) initSentry();
   createWindow();
   // تحديث تلقائي: يعمل فقط في النسخة المثبتة وعند توفر إصدارات على GitHub Releases
   if (app.isPackaged) {
@@ -108,6 +157,7 @@ const SECRET_KEYS = [
   ['apiKey', 'apiKeyEnc'],
   ['groqKey', 'groqKeyEnc'],
   ['moonshotKey', 'moonshotKeyEnc'],
+  ['openrouterKey', 'openrouterKeyEnc'],
 ];
 function encryptApiKey(cfg) {
   try {
@@ -134,7 +184,7 @@ function decryptApiKey(cfg) {
 ipcMain.handle('config:get', () => {
   const cfg = loadConfig();
   // ترحيل: مفتاح قديم بنص صريح → يُشفَّر ويُحفظ
-  if ((cfg.apiKey || cfg.groqKey || cfg.moonshotKey) && safeStorage.isEncryptionAvailable()) {
+  if (SECRET_KEYS.some(([plain]) => cfg[plain]) && safeStorage.isEncryptionAvailable()) {
     const migrated = { ...cfg };
     encryptApiKey(migrated);
     saveConfig(migrated);
@@ -143,6 +193,11 @@ ipcMain.handle('config:get', () => {
   return cfg;
 });
 ipcMain.handle('config:set', (_e, cfg) => {
+  // تبديل تقارير الأعطال يسري فورًا دون إعادة تشغيل
+  if ('crashReports' in cfg) {
+    crashReportsEnabled = cfg.crashReports === true;
+    if (crashReportsEnabled) initSentry();
+  }
   const current = loadConfig();
   const merged = { ...current, ...cfg };
   encryptApiKey(merged);
@@ -155,6 +210,7 @@ ipcMain.handle('app:info', () => ({
   electron: process.versions.electron,
   chrome: process.versions.chrome,
   node: process.versions.node,
+  crashReportsAvailable: !!SENTRY_DSN,
 }));
 
 // ==================== تحذير الملفات غير المحفوظة عند الإغلاق ====================
