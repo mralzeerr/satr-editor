@@ -10,10 +10,10 @@ let mainWindow;
 const CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
 
 // ==================== تقارير الأعطال (Sentry) — اختيارية بموافقة صريحة ====================
-// DSN فارغ = الميزة معطلة بالكامل (يُملأ عند تجهيز حساب sentry.io)
-const SENTRY_DSN = '';
+// DSN فارغ = الميزة معطلة بالكامل
+const SENTRY_DSN = 'https://a3e2f44625c8e16c295acd07a85f56d3@o4511772691398656.ingest.us.sentry.io/4511772695003136';
 let sentry = null;              // مرجع SDK بعد التهيئة
-let crashReportsEnabled = false; // موافقة المستخدم — تُقرأ من الإعدادات وتتحدث فورًا عند التبديل
+let crashReportsEnabled = loadConfig().crashReports === true; // موافقة المستخدم — تتحدث فورًا عند التبديل
 
 // تنظيف أي مسارات تحمل اسم مستخدم الجهاز قبل الإرسال — لا معلومات شخصية في التقارير
 function scrubEvent(event) {
@@ -26,8 +26,10 @@ function scrubEvent(event) {
   }
 }
 
-function initSentry() {
-  if (!SENTRY_DSN || sentry) return;
+// يجب تهيئة Sentry قبل حدث ready لذا تتم هنا في نطاق الوحدة — لكن الإرسال نفسه
+// مقفول ببوابة beforeSend حتى يوافق المستخدم، فيسري تبديل الموافقة فورًا بالاتجاهين.
+// تكامل minidump الأصلي مستبعد لأن رفعه قد يتجاوز beforeSend (بوابة الخصوصية).
+if (SENTRY_DSN) {
   try {
     sentry = require('@sentry/electron/main');
     sentry.init({
@@ -35,6 +37,7 @@ function initSentry() {
       release: 'satr@' + app.getVersion(),
       autoSessionTracking: false,
       sendDefaultPii: false,
+      integrations: (defaults) => defaults.filter((i) => i.name !== 'SentryMinidump'),
       beforeSend: (event) => (crashReportsEnabled ? scrubEvent(event) : null),
     });
   } catch {
@@ -128,8 +131,6 @@ function createWindow() {
 
 app.whenReady().then(() => {
   if (process.platform === 'win32') app.setAppUserModelId('com.aetiger.satr');
-  crashReportsEnabled = loadConfig().crashReports === true;
-  if (crashReportsEnabled) initSentry();
   createWindow();
   // تحديث تلقائي: يعمل فقط في النسخة المثبتة وعند توفر إصدارات على GitHub Releases
   if (app.isPackaged) {
@@ -193,11 +194,8 @@ ipcMain.handle('config:get', () => {
   return cfg;
 });
 ipcMain.handle('config:set', (_e, cfg) => {
-  // تبديل تقارير الأعطال يسري فورًا دون إعادة تشغيل
-  if ('crashReports' in cfg) {
-    crashReportsEnabled = cfg.crashReports === true;
-    if (crashReportsEnabled) initSentry();
-  }
+  // تبديل تقارير الأعطال يسري فورًا دون إعادة تشغيل (البوابة في beforeSend)
+  if ('crashReports' in cfg) crashReportsEnabled = cfg.crashReports === true;
   const current = loadConfig();
   const merged = { ...current, ...cfg };
   encryptApiKey(merged);
