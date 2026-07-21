@@ -345,12 +345,31 @@ async function fetchOpenRouter(apiKey, payload, signal) {
   }
 }
 
-// استدعاء OpenRouter متدفق — يعيد رسالة بشكل Anthropic تمامًا كما تتوقعها حلقة الوكيل
-async function callOpenRouterStream(apiKey, body, { signal, onTextDelta } = {}) {
+// أخطاء ازدحام المزودين المجانيين — تصل أحيانًا داخل البث لا كرمز HTTP
+export const TRANSIENT_ERROR_RE = /ResourceExhausted|rate.?limit|overloaded|upstream error|too many|HTTP 429/i;
+
+// استدعاء OpenRouter متدفق — يعيد رسالة بشكل Anthropic تمامًا كما تتوقعها حلقة الوكيل.
+// يعيد المحاولة حتى مرتين على أخطاء الازدحام العابرة ما دام لم يصل أي محتوى بعد
+// (لو وصل محتوى فالإعادة ستكرره على الشاشة — نتركها للمستخدم).
+async function callOpenRouterStream(apiKey, body, opts = {}) {
   const payload = { ...anthropicBodyToOpenAI(body), stream: true, usage: { include: true } };
+  for (let attempt = 0; ; attempt++) {
+    const progress = { any: false };
+    try {
+      return await readOpenRouterStream(apiKey, payload, body.model, { ...opts, progress });
+    } catch (err) {
+      const canRetry = attempt < 2 && !progress.any && !opts.signal?.aborted
+        && TRANSIENT_ERROR_RE.test(String(err?.message));
+      if (!canRetry) throw err;
+      await new Promise((r) => setTimeout(r, 2500 * (attempt + 1)));
+    }
+  }
+}
+
+async function readOpenRouterStream(apiKey, payload, model, { signal, onTextDelta, progress } = {}) {
   const res = await fetchOpenRouter(apiKey, payload, signal);
 
-  const message = { content: [], stop_reason: 'end_turn', usage: {}, model: body.model };
+  const message = { content: [], stop_reason: 'end_turn', usage: {}, model };
   let textBlock = null;
   const toolAcc = new Map(); // index -> { id, name, args }
   const reader = res.body.getReader();
@@ -375,6 +394,7 @@ async function callOpenRouterStream(apiKey, body, { signal, onTextDelta } = {}) 
       if (!choice) continue;
       const delta = choice.delta || {};
       if (delta.content) {
+        if (progress) progress.any = true;
         if (!textBlock) {
           textBlock = { type: 'text', text: '' };
           message.content.push(textBlock);
@@ -382,6 +402,7 @@ async function callOpenRouterStream(apiKey, body, { signal, onTextDelta } = {}) 
         textBlock.text += delta.content;
         onTextDelta?.(delta.content, textBlock.text);
       }
+      if (delta.tool_calls?.length && progress) progress.any = true;
       for (const tc of delta.tool_calls || []) {
         const idx = tc.index ?? 0;
         if (!toolAcc.has(idx)) toolAcc.set(idx, { id: tc.id || '', name: '', args: '' });

@@ -1,4 +1,4 @@
-import { runAgent, testApiKey, callOnce, MODELS, DEFAULT_MODEL, providerOf, isFreeModel } from './agent.js';
+import { runAgent, testApiKey, callOnce, MODELS, DEFAULT_MODEL, providerOf, isFreeModel, TRANSIENT_ERROR_RE } from './agent.js';
 
 // ============================================================
 //  حالة التطبيق
@@ -209,7 +209,7 @@ const I18N = {
     groupPaid: 'الموديلات الأساسية',
     groupFree: '🎁 موديلات مجانية',
     freeNotice: 'الموديلات المجانية (عبر OpenRouter):\n\n• مناسبة للتجربة والمهام البسيطة — جودتها وسرعتها أقل من الموديلات الأساسية.\n• الطلبات محدودة؛ قد تظهر رسالة ازدحام وقت الضغط.\n• تنبيه خصوصية: قد تُستخدم بياناتك للتدريب لدى بعض المزوّدين المجانيين — لا تستخدمها مع كود حساس أو أسرار.\n\nيلزمك مفتاح OpenRouter مجاني (openrouter.ai/keys).',
-    freeRateLimit: '🎁 الموديل المجاني مزدحم حاليًا (تجاوز الحد المجاني المؤقت). انتظر دقيقة ثم أعد المحاولة، أو بدّل مؤقتًا إلى موديل آخر من القائمة.',
+    freeRateLimit: '🎁 الموديل المجاني مزدحم حاليًا لدى مزوّده — حاولتُ تلقائيًا أكثر من مرة دون جدوى. انتظر دقيقة ثم أعد إرسال طلبك، أو بدّل مؤقتًا إلى موديل آخر من القائمة.',
     freeModelGone: '🎁 يبدو أن هذا الموديل المجاني لم يعد متاحًا لدى OpenRouter — قائمة الموديلات المجانية تتغير باستمرار. اختر موديلًا آخر من القائمة.',
     setupOr: 'أو',
     setupFreeBtn: '🎁 جرّب مجانًا بمفتاح OpenRouter',
@@ -434,7 +434,7 @@ const I18N = {
     groupPaid: 'Main models',
     groupFree: '🎁 Free models',
     freeNotice: 'Free models (via OpenRouter):\n\n• Great for trying things out and simple tasks — quality and speed are below the main models.\n• Requests are rate-limited; you may see a busy message at peak times.\n• Privacy note: some free providers may use your data for training — avoid sensitive code or secrets.\n\nYou need a free OpenRouter key (openrouter.ai/keys).',
-    freeRateLimit: '🎁 The free model is busy right now (temporary free-tier limit). Wait a minute and try again, or switch to another model from the list.',
+    freeRateLimit: '🎁 The free model\'s provider is busy right now — I retried automatically without luck. Wait a minute and resend, or switch to another model from the list.',
     freeModelGone: '🎁 This free model seems to be no longer available on OpenRouter — the free list changes often. Pick another model from the list.',
     setupOr: 'or',
     setupFreeBtn: '🎁 Try free with an OpenRouter key',
@@ -2140,8 +2140,8 @@ async function sendMessage() {
       },
       onError: (err) => {
         showThinking(false);
-        // الموديلات المجانية: رسائل ودّية لأخطائها الشائعة (ازدحام الحد المجاني، اختفاء الموديل)
-        if (isFreeModel(state.model) && /HTTP 429/.test(err)) return addAiText(t('freeRateLimit'));
+        // الموديلات المجانية: رسائل ودّية لأخطائها الشائعة (ازدحام الحد المجاني أو المزود المنبع، اختفاء الموديل)
+        if (isFreeModel(state.model) && TRANSIENT_ERROR_RE.test(err)) return addAiText(t('freeRateLimit'));
         if (isFreeModel(state.model) && /HTTP 404/.test(err)) return addAiText(t('freeModelGone'));
         addAiText(t('errorPrefix') + err);
       },
