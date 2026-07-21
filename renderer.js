@@ -761,7 +761,7 @@ async function ensureModelKey() {
   if (provider === 'openrouter') {
     // تنبيه لمرة واحدة عند أول اختيار لموديل مجاني: الجودة، الازدحام، والخصوصية
     if (!state.freeNoticeSeen) {
-      alert(t('freeNotice'));
+      await showNotice(t('freeNotice'));
       state.freeNoticeSeen = true;
       await window.api.setConfig({ freeNoticeSeen: true });
     }
@@ -840,7 +840,7 @@ el.apiKey.addEventListener('keydown', (e) => {
 // البدء المجاني: مفتاح OpenRouter بدل مفتاح Anthropic — يدخل التطبيق على أول موديل مجاني
 document.getElementById('start-free').addEventListener('click', async () => {
   if (!state.freeNoticeSeen) {
-    alert(t('freeNotice'));
+    await showNotice(t('freeNotice'));
     state.freeNoticeSeen = true;
     await window.api.setConfig({ freeNoticeSeen: true });
   }
@@ -1250,7 +1250,7 @@ function toggleStats() { statsPanel.classList.toggle('open'); updateUsageUI(); }
 document.getElementById('btn-stats').addEventListener('click', toggleStats);
 el.usageBadge.addEventListener('click', toggleStats);
 document.getElementById('btn-reset-stats').addEventListener('click', async () => {
-  if (!confirm(t('resetConfirm'))) return;
+  if (!(await askConfirm(t('resetConfirm')))) return;
   state.usage = { input: 0, output: 0, cacheCreate: 0, cacheRead: 0, cost: 0, requests: 0 };
   await persistUsage();
   updateUsageUI();
@@ -1635,6 +1635,35 @@ modalInput.addEventListener('keydown', (e) => {
 });
 modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(null); });
 
+// بدائل alert/confirm الأصلية — نوافذ Electron الأصلية تعطّل إدخال الكيبورد
+// في النافذة بعد إغلاقها (علة معروفة) فنستخدم مودالًا داخليًا دائمًا
+const noticeOverlay = document.getElementById('notice-overlay');
+const noticeText = document.getElementById('notice-text');
+const noticeOk = document.getElementById('notice-ok');
+const noticeCancel = document.getElementById('notice-cancel');
+let noticeResolve = null;
+function openNotice(message, withCancel) {
+  return new Promise((resolve) => {
+    noticeResolve = resolve;
+    noticeText.textContent = message;
+    noticeCancel.style.display = withCancel ? '' : 'none';
+    noticeOverlay.style.display = 'flex';
+    requestAnimationFrame(() => noticeOk.focus());
+  });
+}
+const showNotice = (message) => openNotice(message, false);
+const askConfirm = (message) => openNotice(message, true);
+function closeNotice(val) {
+  noticeOverlay.style.display = 'none';
+  if (noticeResolve) { noticeResolve(val); noticeResolve = null; }
+}
+noticeOk.addEventListener('click', () => closeNotice(true));
+noticeCancel.addEventListener('click', () => closeNotice(false));
+noticeOverlay.addEventListener('click', (e) => { if (e.target === noticeOverlay) closeNotice(false); });
+document.addEventListener('keydown', (e) => {
+  if (noticeOverlay.style.display === 'flex' && e.key === 'Escape') closeNotice(false);
+});
+
 function hideCtxMenu() { ctxMenu.style.display = 'none'; }
 document.addEventListener('click', hideCtxMenu);
 window.addEventListener('blur', hideCtxMenu);
@@ -1658,7 +1687,7 @@ async function createFileIn(dir) {
   const name = await askString(t('promptNewFile'));
   if (!name) return;
   const p = dir + SEP + name;
-  if (await window.api.exists(p)) { alert(t('alreadyExists')); return; }
+  if (await window.api.exists(p)) { await showNotice(t('alreadyExists')); return; }
   const r = await window.api.writeFile(p, '');
   if (r.ok) {
     await refreshTree();
@@ -1672,7 +1701,7 @@ async function createFolderIn(dir) {
   const name = await askString(t('promptNewFolder'));
   if (!name) return;
   const p = dir + SEP + name;
-  if (await window.api.exists(p)) { alert(t('alreadyExists')); return; }
+  if (await window.api.exists(p)) { await showNotice(t('alreadyExists')); return; }
   const r = await window.api.mkdir(p);
   if (r.ok) await refreshTree();
   else appendTerminal('\n' + r.error + '\n', 'err');
@@ -1685,7 +1714,7 @@ async function renamePathUI(p) {
   const np = parentDir(p) + SEP + newName;
   const r = await window.api.rename(p, np);
   if (!r.ok) {
-    alert(r.error === 'already-exists' ? t('alreadyExists') : r.error);
+    await showNotice(r.error === 'already-exists' ? t('alreadyExists') : r.error);
     return;
   }
   // أغلق أي تبويب مفتوح للمسار القديم (أو ما بداخله إن كان مجلدًا)
@@ -1696,7 +1725,7 @@ async function renamePathUI(p) {
 }
 
 async function deletePathUI(p) {
-  if (!confirm(`${t('deleteConfirm')}\n${p}`)) return;
+  if (!(await askConfirm(`${t('deleteConfirm')}\n${p}`))) return;
   const r = await window.api.deletePath(p);
   if (!r.ok) { appendTerminal('\n' + r.error + '\n', 'err'); return; }
   for (const key of [...state.openFiles.keys()]) {
@@ -2210,7 +2239,7 @@ async function renderCkptPanel() {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       if (state.running) return;
-      if (!confirm(t('undoConfirm'))) return;
+      if (!(await askConfirm(t('undoConfirm')))) return;
       ckptPanel.classList.remove('open');
       const r = await window.api.ckptUndoTo(c.id);
       if (r.ok) await afterRestore(r.restored.length);
@@ -2899,10 +2928,10 @@ document.getElementById('btn-git-newbranch').addEventListener('click', async () 
 document.getElementById('btn-git-commit').addEventListener('click', async () => {
   const msgBox = document.getElementById('git-commit-msg');
   const msg = msgBox.value.trim();
-  if (!msg) { alert(t('commitNeedMsg')); return; }
+  if (!msg) { await showNotice(t('commitNeedMsg')); return; }
   const hasStaged = gitState.files.some((f) => f.x !== ' ' && f.x !== '?');
   if (!hasStaged) {
-    if (!confirm(t('stageAllConfirm'))) return;
+    if (!(await askConfirm(t('stageAllConfirm')))) return;
     await window.api.gitStage(state.workspace, ['.']);
   }
   const r = await window.api.gitCommit(state.workspace, msg);
@@ -3117,7 +3146,7 @@ document.getElementById('btn-replace-all').addEventListener('click', async () =>
   const query = searchInput.value.trim();
   const replacement = document.getElementById('replace-input').value;
   if (!query || !state.workspace) return;
-  if (!confirm(t('replaceConfirm'))) return;
+  if (!(await askConfirm(t('replaceConfirm')))) return;
   const r = await window.api.replaceInFiles({ root: state.workspace, query, replacement });
   addAiText(`${t('replaceDone')} ${r.count} ${t('replaceIn')} ${r.files} ${t('filesCount')}.`);
   for (const key of [...state.openFiles.keys()]) await reloadIfOpen(key);

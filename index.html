@@ -338,6 +338,17 @@
     </div>
   </div>
 
+  <!-- مودال تنبيه/تأكيد — بديل alert/confirm الأصلية (تعطّل الكيبورد في Electron بعد إغلاقها) -->
+  <div class="modal-overlay" id="notice-overlay" style="display:none">
+    <div class="modal-box">
+      <div class="notice-text" id="notice-text"></div>
+      <div class="modal-actions">
+        <button class="btn-primary" id="notice-ok" data-i18n="ok">موافق</button>
+        <button class="modal-cancel" id="notice-cancel" data-i18n="cancel">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
   <!-- مودال إدخال اسم (بديل prompt غير المدعوم في Electron) -->
   <div class="modal-overlay" id="modal-overlay" style="display:none">
     <div class="modal-box">
